@@ -1,0 +1,66 @@
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  image: custom-airflow:2.10.5-python3.12
+  env_file:
+    - ./airflow/airflow.env
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./jobpull:/opt/airflow/jobpull
+    - ./airflow/utils:/opt/airflow/utils
+    - ./airflow/requirements.txt:/opt/airflow/requirements.txt
+  depends_on:
+    - postgres
+  networks:
+    - job-pull
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - '5432:5432'
+    env_file:
+      - ./postgres/postgres.env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jobs_db
+    command: [ 'postgres', '-c', 'wal_level=logical' ]
+    healthcheck:
+      test: [ 'CMD', 'psql', '-U', 'postgres', '-c', 'SELECT 1' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/db_init:/docker-entrypoint-initdb.d
+    networks:
+      - job-pull
+
+  airflow-init:
+    <<: *airflow-common
+    command: >
+      bash -c "pip install -r /opt/airflow/requirements.txt && airflow db init && airflow db upgrade && airflow users create --username admin --firstname admin --lastname admin --role Admin --email airflow@airflow.com --password admin"
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+
+networks:
+  job-pull:
+    name: job-pull
+    driver: bridge
+
+volumes:
+  postgres_data:
