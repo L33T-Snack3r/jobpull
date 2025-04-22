@@ -1,7 +1,7 @@
 -- Create table_A if it does not exist
 
 CREATE TABLE IF NOT EXISTS joblistings (
-    job_id SERIAL PRIMARY KEY,
+    job_id TEXT PRIMARY KEY,
     website TEXT,
     job_url TEXT NOT NULL,
     job_url_direct TEXT,
